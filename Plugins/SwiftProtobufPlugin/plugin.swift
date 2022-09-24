@@ -63,7 +63,7 @@ struct SwiftProtobufPlugin: BuildToolPlugin {
             protocPath = Path(environmentPath)
         } else {
             // The user didn't set anything so let's try see if SPM can find a binary for us
-            protocPath = try context.tool(named: "protoc").path
+            protocPath = try findSystemProtoc() ?? context.tool(named: "protoc").path
         }
         let protocGenSwiftPath = try context.tool(named: "protoc-gen-swift").path
 
@@ -79,6 +79,19 @@ struct SwiftProtobufPlugin: BuildToolPlugin {
                 outputDirectory: outputDirectory
             )
         }
+    }
+
+    private func findSystemProtoc() throws -> Path? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["-i", "HOME=\"$HOME\"", "bash", "-l", "-c", "which protoc"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        try process.run()
+        process.waitUntilExit()
+        guard let stdoutData = try stdout.fileHandleForReading.readToEnd(),
+              let str = String(data: stdoutData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        return Path(str)
     }
 
     /// Invokes `protoc` with the given inputs
